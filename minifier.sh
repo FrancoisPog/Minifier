@@ -1,5 +1,5 @@
 #! /bin/sh
-
+# Function displaying the help message
 help(){
       echo 'usage : ./minifier.sh [OPTION]... dir_source dir_dest
 
@@ -21,32 +21,40 @@ help(){
                                 tags (opening or closing) listed in the ’tags_file’ are deleted'
 }
 
-# Function checking if a pattern is present in a string
+
+# Function checking if a string matching with pattern
 # $1 : The string
 # $2 : The pattern
-contains_pattern()(
+match_pattern(){
   ! test -z $( echo "$1" | grep -E "$2" )
-  exit $?
-)
+  return $?
+}
+
+# Function cheking if a variable is already initialized
+# $1 : The variable name 
+isSet(){
+  ! test "$1" = ""
+  return $?
+}
 
 # Function assigning the value '1' to variables with the same name as the given parameter
-# $1 : The option (ex : css, f ...)
+# $1 : The option (ex : css, f ...) without '-' or '--'
 # $2 : 'double' if the original option is of type '--', else if is of type '-'
 # Exemple : 
-#           set_option f -> will create $F and F=1
-#           set_option css double -> will create $CSS and CSS=1
+#           set_option f -> will create $F and $F=1
+#           set_option css double -> will create $CSS and $CSS=1
 #           set_option css or set_option t double -> error
 set_option(){
   # check option validity
   if test "$2" = 'double'; then
-    ! contains_pattern "$1" '(^css$|^html$)' && { echo "Unsupported option : '--$1'" >&2 && exit 1; }
+    ! match_pattern "$1" '(^css$|^html$)' && { echo "The '--$1' option is not supported\n$USAGE" >&2 && exit 1; }                 # ===> EXIT : Wrong '--' option 
   else
-    ! contains_pattern "$1" '^[vft]$' && { echo "Unsupported option : '-$1'" >&2 && exit 1; }
+    ! match_pattern "$1" '^[vft]$' && { echo "The '-$1' option is not supported\n$USAGE" >&2 && exit 1; }                         # ===> EXIT : Wrong '-' option
   fi
 
-  # Create the variable associated with the option and check if it's the first time, if not EXIT
+  # Create the variable associated with the option and check if it's the first time
   OPT_NAME=$( echo "$1" | sed -e 's/\(.*\)/\U\1/' )
-  test -z $( eval echo "\$$OPT_NAME" ) || { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 1; }
+  isSet $( eval echo "\$$OPT_NAME" ) && { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 1; }  # ===> EXIT : same option deveral times
   eval $OPT_NAME=1
   
 }
@@ -65,46 +73,99 @@ set_group_options(){
 # Function checking the arguments entered by user
 # $1 : The arguments list 
 check_arguments(){
+  
   if test $# -eq 1 && test "$1" = "--help"; then
     help
-    exit 0
+    exit 0                                                                                                                        # ===> EXIT : after help message
   fi
 
   ARG_NB=0 
-  TAGS_FILE=-1 # The number of the argument designating the tags_file  
+  TAGS_FILE_INDEX=-1 # The number of the argument designating the tags_file  
 
   for OPT in "$@"; do 
     ARG_NB=$(($ARG_NB+1))
 
-    test $ARG_NB -eq $TAGS_FILE && continue # skip the argument just after the '-t' option
+    test $ARG_NB -eq $TAGS_FILE_INDEX && continue # skip the argument just after the '-t' option
 
-    test $OPT = '--help' && { echo "The '--help' option must be alone\n$USAGE" >&2 && exit 1; }
+    test $OPT = '--help' && { echo "The '--help' option must be alone\n$USAGE" >&2 && exit 1; }                                   # ===> EXIT : '--help' isn't alone
   
 
     # check '-' options
-    if ! test -z $( echo $OPT | grep -E "^-[^-]+$" ) ; then 
+    if match_pattern $OPT "^-[^-]+$" ; then 
       set_group_options $OPT
 
-      if ! test -z $(echo $OPT | grep 't');then
-        TAGS_FILE=$(($ARG_NB+1))
-        test -f "$(eval echo $"$(($ARG_NB+1))")" || { echo "Invalid tags_file" && exit 3; }
+      if match_pattern $OPT 't' ;then
+        TAGS_FILE_INDEX=$(($ARG_NB+1))
+        TAGS_FILE=$(eval echo \$$TAGS_FILE_INDEX)
+        test -f "$TAGS_FILE" || { echo "Error : '-t' : Invalid tags_file '$TAGS_FILE'\n$USAGE">&2 && exit 3; }                    # ===> EXIT : Invalid tags_file
+        
       fi
 
       continue
     fi 
 
     # check '--' options
-    if ! test -z $( echo $OPT | grep -E "^--" ) ; then
+    if match_pattern $OPT "^--" ; then
       OPT=$(echo $OPT | sed -r -e 's/^--//');
       set_option $OPT double
       continue
     fi
 
+    if ! isSet $SRC_DIR ;then
+      test -d "$OPT" || { echo "Invalid path to dir_sources : '$OPT'\n$USAGE" >&2 && exit 4 ;  }                                  # ===> EXIT : Invalid source directory
+      SRC_DIR="$OPT" 
+      continue
+    fi
+
+    if ! isSet $DEST_DIR; then
+      match_pattern $OPT "^$SRC_DIR$" && { echo "dir_source and dir_dest must be different\n$USAGE ">&2 && exit 1;}               # ===> EXIT : dest_dir is same as src_dir
+      DEST_DIR="$OPT"
+      continue
+    fi
     
-    test -d $OPT || { echo "Invalid path to 'dir_sources'\n$USAGE" >&2 && exit 4 ;  }
+    echo "Invalid argument '$OPT'\n$USAGE" >&2 && exit 5                                                                          # ===> EXIT : Invalid argument
 
   done
+
+  if ! isSet $SRC_DIR ||  ! isSet $DEST_DIR ; then
+    echo "Paths to 'dir_sources' and 'dir_dest' must be specified\n$USAGE" >&2
+    exit 3                                                                                                                        # ===> EXIT : source or destination directory not specified
+  fi
+
 }
+
+
+search_file(){
+  if isSet $HTML && test -f "$1" && match_pattern "$1" "^.+\.html$"; then
+    echo "- html file : $1"
+    minifier_html "$1"
+  fi
+
+  if isSet $CSS && test -f "$1" && match_pattern "$1" "^.+\.css$"; then
+    echo "- css file : $1"
+    minifier_css "$1"
+  fi
+
+  # if the argument isn't directory, we stop the function
+  test -d "$1" || return 
+  mkdir -p "$DEST_DIR"/"$1"
+  local I
+  for I in "$1"/*; do
+      search_file "$I"
+  done
+}
+
+
+minifier_html(){
+  # echo "$1"
+  cat "$1" | tr "\n" " " | sed -r -e 's/<!--.*-->//g' -e 's/ +/ /g' -e 's/\t/ /g' -e 's/\r/ /g' | tee "$DEST_DIR"/"$1" >/dev/null
+}
+
+minifier_css(){
+  cat "$1" | tr "\n" " " | sed -r  -e 's/ +/ /g' -e 's/\t/ /g' -e 's/\r/ /g' | tee "$DEST_DIR"/"$1" >/dev/null
+}
+
+
 
 # MAIN
 
@@ -112,13 +173,28 @@ USAGE='Enter "./minifier.sh --help" for more informations.'
 
 check_arguments "$@"
 
+search_file $SRC_DIR
 
+echo "\n"
 echo $"F:$F"
 echo $"V:$V"
 echo $"T:$T"
+echo $"TAGS_FILE:$TAGS_FILE"
 echo $"CSS:$CSS"
 echo $"HTML:$HTML"
+echo $"SRC_DIR:$SRC_DIR"
+echo $"DEST_DIR:$DEST_DIR"
+
+
+
+
+
+
 
 
 
 echo "<end>"
+
+
+
+
