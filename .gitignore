@@ -9,3 +9,6 @@
 *.jpeg
 *.png
 *.gif
+
+# Text files
+*.txt
