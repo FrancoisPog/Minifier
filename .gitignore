@@ -1,0 +1,11 @@
+# CSS files
+*.css
+
+# HTML files
+*.html
+
+# Pictures
+*.jpg
+*.jpeg
+*.png
+*.gif
