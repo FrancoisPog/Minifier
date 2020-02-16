@@ -54,7 +54,7 @@ set_option(){
 
   # Create the variable associated with the option and check if it's the first time
   OPT_NAME=$( echo "$1" | sed -e 's/\(.*\)/\U\1/' )
-  isSet $( eval echo "\$$OPT_NAME" ) && { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 1; }  # ===> EXIT : same option deveral times
+  isSet $( eval echo "\$$OPT_NAME" ) && { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 1; }  # ===> EXIT : same option several times
   eval $OPT_NAME=1
   
 }
@@ -84,7 +84,7 @@ check_arguments(){
 
   for OPT in "$@"; do 
     ARG_NB=$(($ARG_NB+1))
-
+    OPT="$OPT"
     test $ARG_NB -eq $TAGS_FILE_INDEX && continue # skip the argument just after the '-t' option
 
     test $OPT = '--help' && { echo "The '--help' option must be alone\n$USAGE" >&2 && exit 1; }                                   # ===> EXIT : '--help' isn't alone
@@ -98,7 +98,8 @@ check_arguments(){
         TAGS_FILE_INDEX=$(($ARG_NB+1))
         TAGS_FILE=$(eval echo \$$TAGS_FILE_INDEX)
         test -f "$TAGS_FILE" || { echo "Error : '-t' : Invalid tags_file '$TAGS_FILE'\n$USAGE">&2 && exit 3; }                    # ===> EXIT : Invalid tags_file
-        
+        TAGS_BLOCK=$(cat $TAGS_FILE)
+        echo $TAGS_BLOCK
       fi
 
       continue
@@ -148,7 +149,8 @@ search_file(){
 
   # if the argument isn't directory, we stop the function
   test -d "$1" || return 
-  mkdir -p "$DEST_DIR"/"$1"
+  echo "$DEST_DIR"/"$1"
+  echo $( echo "$DEST_DIR"/"$1" | sed -r -e "s/\$DEST_DIR/\$SRC_DIR/g" )
   local I
   for I in "$1"/*; do
       search_file "$I"
@@ -157,14 +159,39 @@ search_file(){
 
 
 minifier_html(){
+  SVG_IFS=$IFS
   # echo "$1"
-  cat "$1" | tr "\n" " " | sed -r -e 's/<!--.*-->//g' -e 's/ +/ /g' -e 's/\t/ /g' -e 's/\r/ /g' | tee "$DEST_DIR"/"$1" >/dev/null
+  cat "$1" | tr "\n" " " | sed -E -e 's/<!--[^(-->)]*-->//g'  -e 's/\t/ /g' -e 's/\r/ /g' -e 's/ +/ /g' -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' | tee "$DEST_DIR/$1" >/dev/null
+  
+  if isSet $T ; then 
+    IFS=':'
+    for TAG in $TAGS_BLOCK; do
+      TAG=$(echo "$TAG" | sed -e 's/\(.*\)/\L\1/')
+      FILE=$(cat "$DEST_DIR/$1")
+      echo "$FILE" | sed -E -e "s/ ?<$TAG> ?/<$TAG>/g"  -e "s/ <$TAG([^>]*)> /<$TAG\1>/g" -e "s/ ?<\/$TAG ?> ?/<\/$TAG>/g"  | tee "$DEST_DIR/$1" > /dev/null
+      ! test -s "$DEST_DIR"/"$1" && echo $TAG && exit 8
+    done
+  fi
+  IFS=$SVG_IFS
 }
 
 minifier_css(){
   cat "$1" | tr "\n" " " | sed -r  -e 's/ +/ /g' -e 's/\t/ /g' -e 's/\r/ /g' | tee "$DEST_DIR"/"$1" >/dev/null
 }
 
+
+copy_directory(){
+
+  test -d "$1" || return
+  
+  for I in "$1"/*; do
+    if test -f "$I" || test -d "$I" ; then 
+      echo $I
+      
+    fi
+    copy_directory $I
+  done
+}
 
 
 # MAIN
@@ -173,7 +200,9 @@ USAGE='Enter "./minifier.sh --help" for more informations.'
 
 check_arguments "$@"
 
-search_file $SRC_DIR
+# copy_directory $SRC_DIR $DEST_DIR
+
+search_file $SRC_DIR 
 
 echo "\n"
 echo $"F:$F"
