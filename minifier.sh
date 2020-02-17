@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/dash
 # Function displaying the help message
 help(){
       echo 'usage : ./minifier.sh [OPTION]... dir_source dir_dest
@@ -157,8 +157,8 @@ execute_minifier(){
 
 minifier_html(){
   SVG_IFS=$IFS
-  # echo "$1"
-  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^(-->)])*-->/ /g'  -e 's/\t/ /g' -e 's/\r/ /g' -e 's/ +/ /g' -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' | tee "$1" >/dev/null
+  # echo "$1"-e 's/ +/ /g'
+  cat "$1" | tr "\n" " " | sed -E -e 's/<!--(-?-?[^<]?)*-->/ /g'  -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/\n/ /g' -e 's/ +/ /g' | tee "$1" >/dev/null
   
   if isSet $T ; then 
     IFS=':'
@@ -173,7 +173,7 @@ minifier_html(){
 }
 
 minifier_css(){
-  cat "$1" | tr "\n" " " | sed -r  -e 's/ +/ /g' -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" | tee "$1" >/dev/null
+  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ ?([,;:{}>()]) ?/\1/g' | tee "$1" >/dev/null
 }
 
 
