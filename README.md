@@ -1,5 +1,5 @@
 # Minifier
-The "Minifier" is a dash command to minimize the the html/css files size.<br>
+The "Minifier" is a dash script to minimize the the html/css files size.<br>
 This tool is developed in the "système" course.
 
 ## Language used
