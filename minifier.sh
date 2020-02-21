@@ -132,17 +132,20 @@ check_arguments(){
     exit 3                                                                                      # ===> EXIT : source or destination directory not specified
   fi
 
+  if ! isSet $CSS && ! isSet $HTML; then
+    set_option css double
+    set_option html double
+  fi
+
 }
 
 
 execute_minifier(){
-  if isSet $HTML && test -f "$1" && match_pattern "$1" "^.+\.html$"; then
-    echo "- html file : $1"
+  if isSet $HTML && test -f "$1" && match_pattern "$1" "^.+\.html?$"; then
     minifier_html "$1"
   fi
 
   if isSet $CSS && test -f "$1" && match_pattern "$1" "^.+\.css$"; then
-    echo "- css file : $1"
     minifier_css "$1"
   fi
 
@@ -157,8 +160,8 @@ execute_minifier(){
 
 minifier_html(){
   SVG_IFS=$IFS
-  # echo "$1"-e 's/ +/ /g'
-  cat "$1" | tr "\n" " " | sed -E -e 's/<!--(-?-?[^<]?)*-->/ /g'  -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/\n/ /g' -e 's/ +/ /g' | tee "$1" >/dev/null
+  SIZE_B=$(get_size $1)
+  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/\n/ /g' -e 's/ +/ /g' | tee "$1" >/dev/null
   
   if isSet $T ; then 
     IFS=':'
@@ -170,26 +173,49 @@ minifier_html(){
     done
   fi
   IFS=$SVG_IFS
+  SIZE_A=$(get_size $1)
+  GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
+  GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
+  if isSet $V; then
+    echo "FILE HTML : $1 --> $SIZE_A/$SIZE_B : $GAIN%"
+  fi
 }
 
 minifier_css(){
-  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ ?([,;:{}>()]) ?/\1/g' | tee "$1" >/dev/null
+  SIZE_B=$(get_size "$1")
+  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>]) */\1/g' | tee "$1" >/dev/null
+  SIZE_A=$(get_size "$1")
+  GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
+  GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
+  if isSet $V; then
+    echo "FILE CSS : $1 --> $SIZE_A/$SIZE_B : $GAIN%"
+  fi
 }
 
 
 copy_directory(){
-  if test -d "$2" && ! isSet $F ;then
-    read -p "The '$2' directory already exist, would you overwrite it ? [Y/N] : " CHOICE
-    test "$CHOICE" = "Y" || test "$CHOICE" = "y" || { echo "Execution canceled, end of program."; exit 4;}   # ===> EXIT : User don't want to overwrite
-    rm -rf ./"$2" || { echo "Error :  overwrite cancelation"; exit 4;}
-  fi 
-  if isSet $F; then 
-    rm -rf ./"$2"  || { echo "Error :  overwrite cancelation"; exit 4;}
-  fi
+  PARENTS_NAME=$(echo "$2" | sed -E  -e 's/[^\/]*$//g')
  
-  cp -r "$1" ./"$2" || { echo "Error : dest_dir creation canceled"; exit 4;}
+  # Asking confirmation to overwrite
+  if test -d "$2" ;then 
+    if ! isSet $F ; then
+      read -p "The '$2' directory already exist, would you overwrite it ? [Y/N] : " CHOICE
+      test "$CHOICE" = "Y" || test "$CHOICE" = "y" || { echo "Execution canceled, end of program."; exit 4;}   # ===> EXIT : User don't want to overwrite
+    fi
+      rm -rf ./"$2" || { echo "Error :  overwrite cancelation"; exit 4;}
+  else 
+    #  Creation of parents file
+    test -z "$PARENTS_NAME" || { mkdir -p "$PARENTS_NAME" || { echo "Error :  folders creation failed"; exit 4;};}
+  fi
+
+  cp -r "$1" "$2" || { echo "Error : dest_dir creation canceled"; exit 4;}
 }
 
+
+get_size(){
+  wc -c "$1" | cut -d" " -f1 >> size_log 
+  echo $(wc -c "$1" | cut -d" " -f1 )
+}
 
 #######################################################
 #                       MAIN                          #
@@ -199,30 +225,21 @@ USAGE='Enter "./minifier.sh --help" for more informations.'
 
 check_arguments "$@"
 
+DEST_DIR="$(echo $DEST_DIR | sed -E -e 's/\/$//')"
+
 copy_directory "$SRC_DIR" "$DEST_DIR"
 
 execute_minifier "$DEST_DIR"
 
-echo "\n"
-echo $"F:$F"
-echo $"V:$V"
-echo $"T:$T"
-echo $"TAGS_FILE:$TAGS_FILE"
-echo $"CSS:$CSS"
-echo $"HTML:$HTML"
-echo $"SRC_DIR:$SRC_DIR"
-echo $"DEST_DIR:$DEST_DIR"
-
-
-
-
-
-
-
+# echo "\n"
+# echo $"F:$F"
+# echo $"V:$V"
+# echo $"T:$T"
+# echo $"TAGS_FILE:$TAGS_FILE"
+# echo $"CSS:$CSS"
+# echo $"HTML:$HTML"
+# echo $"SRC_DIR:$SRC_DIR"
+# echo $"DEST_DIR:$DEST_DIR"
 
 
 echo "<end>"
-
-
-
-
