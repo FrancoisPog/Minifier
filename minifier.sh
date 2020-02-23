@@ -159,20 +159,21 @@ execute_minifier(){
 
 
 minifier_html(){
-  SVG_IFS=$IFS
+  
   SIZE_B=$(get_size $1)
   cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/\n/ /g' -e 's/ +/ /g' | tee "$1" >/dev/null
   
   if isSet $T ; then 
-    IFS=':'
+    
     for TAG in $TAGS_BLOCK; do
+      # echo $TAG
       TAG=$(echo "$TAG" | sed -e 's/\(.*\)/\L\1/')
       FILE=$(cat "$1")
       echo "$FILE" | sed -E -e "s/ ?<$TAG> ?/<$TAG>/g"  -e "s/ <$TAG([^>]*)> /<$TAG\1>/g" -e "s/ ?<\/$TAG ?> ?/<\/$TAG>/g"  | tee "$1" > /dev/null
       ! test -s "$1" && echo $TAG && exit 8
     done
   fi
-  IFS=$SVG_IFS
+  
   SIZE_A=$(get_size $1)
   GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
   GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
@@ -183,7 +184,7 @@ minifier_html(){
 
 minifier_css(){
   SIZE_B=$(get_size "$1")
-  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>]) */\1/g' | tee "$1" >/dev/null
+  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>()]) */\1/g' | tee "$1" >/dev/null
   SIZE_A=$(get_size "$1")
   GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
   GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
