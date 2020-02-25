@@ -1,4 +1,9 @@
 #! /bin/dash
+
+#######################################################
+#                     FUNCTIONS                       #
+#######################################################
+
 # Function displaying the help message
 help(){
       echo 'usage : ./minifier.sh [OPTION]... dir_source dir_dest
@@ -49,17 +54,17 @@ set_option(){
   if test "$2" = 'double'; then
     ! match_pattern "$1" '(^css$|^html$)' && { echo "The '--$1' option is not supported\n$USAGE" >&2 && exit 1; }       # ===> EXIT : Wrong '--' option 
   else
-    ! match_pattern "$1" '^[vft]$' && { echo "The '-$1' option is not supported\n$USAGE" >&2 && exit 1; }        # ===> EXIT : Wrong '-' option
+    ! match_pattern "$1" '^[vft]$' && { echo "The '-$1' option is not supported\n$USAGE" >&2 && exit 2; }        # ===> EXIT : Wrong '-' option
   fi
 
   # Create the variable associated with the option and check if it's the first time
   OPT_NAME=$( echo "$1" | sed -e 's/\(.*\)/\U\1/' )
-  isSet $( eval echo "\$$OPT_NAME" ) && { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 1; }  # ===> EXIT : same option several times
+  isSet $( eval echo "\$$OPT_NAME" ) && { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 3; }  # ===> EXIT : same option several times
   eval $OPT_NAME=1
   
 }
 
-# Function calling 'set_option' for each option in an options group
+# Function calling the function 'set_option' for each option in an options group
 # $1 : The options group (ex : -vf, -t ...) 
 set_group_options(){
   OPTS=$( echo "$1" | sed -e 's/^-//g') # deleting '-'
@@ -73,7 +78,6 @@ set_group_options(){
 # Function checking the arguments entered by user
 # $1 : The arguments list 
 check_arguments(){
-  
   if test $# -eq 1 && test "$1" = "--help"; then
     help
     exit 0                                 # ===> EXIT : after help message
@@ -85,11 +89,11 @@ check_arguments(){
   for OPT in "$@"; do 
     ARG_NB=$(($ARG_NB+1))
     OPT="$OPT"
+
     test $ARG_NB -eq $TAGS_FILE_INDEX && continue # skip the argument just after the '-t' option
 
-    test $OPT = '--help' && { echo "The '--help' option must be alone\n$USAGE" >&2 && exit 1; }             # ===> EXIT : '--help' isn't alone
+    test $OPT = '--help' && { echo "The '--help' option must be alone\n$USAGE" >&2 && exit 4; }             # ===> EXIT : '--help' isn't alone
   
-
     # check '-' options
     if match_pattern $OPT "^-[^-]+$" ; then 
       set_group_options $OPT
@@ -97,7 +101,7 @@ check_arguments(){
       if match_pattern $OPT 't' ;then
         TAGS_FILE_INDEX=$(($ARG_NB+1))
         TAGS_FILE=$(eval echo \$$TAGS_FILE_INDEX)
-        test -f "$TAGS_FILE" || { echo "Error : '-t' : Invalid tags_file '$TAGS_FILE'\n$USAGE">&2 && exit 3; }           # ===> EXIT : Invalid tags_file
+        test -f "$TAGS_FILE" || { echo "Error : '-t' : Invalid tags_file '$TAGS_FILE'\n$USAGE">&2 && exit 5; }           # ===> EXIT : Invalid tags_file
         TAGS_BLOCK=$(cat $TAGS_FILE)
       fi
 
@@ -112,24 +116,24 @@ check_arguments(){
     fi
 
     if ! isSet $SRC_DIR ;then
-      test -d "$OPT" || { echo "Invalid path to dir_sources : '$OPT'\n$USAGE" >&2 && exit 4 ;  }                  # ===> EXIT : Invalid source directory
+      test -d "$OPT" || { echo "Invalid path to dir_sources : '$OPT'\n$USAGE" >&2 && exit 6 ;  }                  # ===> EXIT : Invalid source directory
       SRC_DIR="$OPT" 
       continue
     fi
 
     if ! isSet $DEST_DIR; then
-      match_pattern $OPT "^$SRC_DIR$" && { echo "dir_source and dir_dest must be different\n$USAGE ">&2 && exit 1;}               # ===> EXIT : dest_dir is same as src_dir
+      match_pattern $OPT "^$SRC_DIR$" && { echo "dir_source and dir_dest must be different\n$USAGE ">&2 && exit 7;}               # ===> EXIT : dest_dir is same as src_dir
       DEST_DIR="$OPT"
       continue
     fi
     
-    echo "Invalid argument '$OPT'\n$USAGE" >&2 && exit 5                  # ===> EXIT : Invalid argument
+    echo "Invalid argument '$OPT'\n$USAGE" >&2 && exit 8                  # ===> EXIT : Invalid argument
 
   done
 
   if ! isSet $SRC_DIR ||  ! isSet $DEST_DIR ; then
     echo "Paths to 'dir_sources' and 'dir_dest' must be specified\n$USAGE" >&2
-    exit 3                                                                                      # ===> EXIT : source or destination directory not specified
+    exit 9                                                                                     # ===> EXIT : source or destination directory not specified
   fi
 
   if ! isSet $CSS && ! isSet $HTML; then
@@ -139,7 +143,8 @@ check_arguments(){
 
 }
 
-
+# Function browsing the copy of sources directory to minifie files
+# $1 : The destination directory
 execute_minifier(){
   if isSet $HTML && test -f "$1" && match_pattern "$1" "^.+\.html?$"; then
     minifier_html "$1"
@@ -151,49 +156,67 @@ execute_minifier(){
 
   # if the argument isn't directory, we stop the function
   test -d "$1" || return 
+
   local I
   for I in "$1"/*; do
       execute_minifier "$I"
   done
+
+  rm tmp.txt 2>/dev/null
 }
 
-
+# Function executing the minification of an html file
+# $1 : The html file
+# N.B. in this function we have to pass by a temporary file ('tmp.txt') because we can't do 'cat file.txt > file.txt', 
+#      and "cat file.txt | tee file.txt" doesn't always work
 minifier_html(){
-  
   SIZE_B=$(get_size $1)
-  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/\n/ /g' -e 's/ +/ /g' | tee "$1" >/dev/null
+
+  # main minification
+  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/ +/ /g' > tmp.txt 
+  cat tmp.txt > "$1"
+
   
   if isSet $T ; then 
-    
+    # minification with tags_file
     for TAG in $TAGS_BLOCK; do
-      # echo $TAG
       TAG=$(echo "$TAG" | sed -e 's/\(.*\)/\L\1/')
-      FILE=$(cat "$1")
-      echo "$FILE" | sed -E -e "s/ ?<$TAG> ?/<$TAG>/g"  -e "s/ <$TAG([^>]*)> /<$TAG\1>/g" -e "s/ ?<\/$TAG ?> ?/<\/$TAG>/g"  | tee "$1" > /dev/null
-      ! test -s "$1" && echo $TAG && exit 8
+      cat "$1" | sed -E -e "s/ ?<$TAG> ?/<$TAG>/g"  -e "s/ <$TAG([^>]*)> /<$TAG\1>/g" -e "s/ ?<\/$TAG ?> ?/<\/$TAG>/g" > tmp.txt
+      cat tmp.txt > "$1"
     done
   fi
   
   SIZE_A=$(get_size $1)
-  GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
-  GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
+  
   if isSet $V; then
+    GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
+    GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
     echo "FILE HTML : $1 --> $SIZE_A/$SIZE_B : $GAIN%"
   fi
 }
 
+# Function executing the minification of a css file
+# $1 : The css file
+# N.B. in this function we have to pass by a temporary file ('tmp.txt') because we can't do 'cat file.txt > file.txt', 
+#      and "cat file.txt | tee file.txt" doesn't always work
 minifier_css(){
   SIZE_B=$(get_size "$1")
-  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>()]) */\1/g' | tee "$1" >/dev/null
+
+  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>(]) */\1/g' > tmp.txt
+  cat tmp.txt > "$1"
+  
   SIZE_A=$(get_size "$1")
-  GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
-  GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
+  
   if isSet $V; then
+    GAIN=$(echo "scale=6;100-($SIZE_A/$SIZE_B)*100" | bc)
+    GAIN=$(echo $GAIN | sed -E -e 's/(.*\..?).*/\1/g')
     echo "FILE CSS : $1 --> $SIZE_A/$SIZE_B : $GAIN%"
   fi
 }
 
-
+# Function copying the source directory in the destination directory
+# $1 : The source directory
+# $2 : The destination directory
 copy_directory(){
   PARENTS_NAME=$(echo "$2" | sed -E  -e 's/[^\/]*$//g')
  
@@ -201,20 +224,19 @@ copy_directory(){
   if test -d "$2" ;then 
     if ! isSet $F ; then
       read -p "The '$2' directory already exist, would you overwrite it ? [Y/N] : " CHOICE
-      test "$CHOICE" = "Y" || test "$CHOICE" = "y" || { echo "Execution canceled, end of program."; exit 4;}   # ===> EXIT : User don't want to overwrite
+      test "$CHOICE" = "Y" || test "$CHOICE" = "y" || { echo "Execution canceled, end of program"; exit 10;}   # ===> EXIT : User don't want to overwrite
     fi
-      rm -rf ./"$2" || { echo "Error :  overwrite cancelation"; exit 4;}
+      rm -rf ./"$2" || { echo "Error :  cancellation of overwrite, end of program"; exit 11;} # ===> EXIT : User can't remove folders
   else 
     #  Creation of parents file
-    test -z "$PARENTS_NAME" || { mkdir -p "$PARENTS_NAME" || { echo "Error :  folders creation failed"; exit 4;};}
+    test -z "$PARENTS_NAME" || { mkdir -p "$PARENTS_NAME" || { echo "Error :  folders creation failed, end of program"; exit 12;};} # ===> EXIT : User can't create folders
   fi
 
-  cp -r "$1" "$2" || { echo "Error : dest_dir creation canceled"; exit 4;}
+  cp -r "$1" "$2" || { echo "Error : '$2' creation canceled, end of program"; exit 13;} # ===> EXIT : User can't copy folder
 }
 
-
+# Function to get the size of a file
 get_size(){
-  wc -c "$1" | cut -d" " -f1 >> size_log 
   echo $(wc -c "$1" | cut -d" " -f1 )
 }
 
@@ -232,15 +254,5 @@ copy_directory "$SRC_DIR" "$DEST_DIR"
 
 execute_minifier "$DEST_DIR"
 
-# echo "\n"
-# echo $"F:$F"
-# echo $"V:$V"
-# echo $"T:$T"
-# echo $"TAGS_FILE:$TAGS_FILE"
-# echo $"CSS:$CSS"
-# echo $"HTML:$HTML"
-# echo $"SRC_DIR:$SRC_DIR"
-# echo $"DEST_DIR:$DEST_DIR"
 
 
-echo "<end>"
