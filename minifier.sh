@@ -161,8 +161,7 @@ execute_minifier(){
   for I in "$1"/*; do
       execute_minifier "$I"
   done
-
-  rm tmp.txt 2>/dev/null
+  rm /tmp/minifier_tmp.txt 2>/dev/null
 }
 
 # Function executing the minification of an html file
@@ -173,16 +172,16 @@ minifier_html(){
   SIZE_B=$(get_size $1)
 
   # main minification
-  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/ +/ /g' > tmp.txt 
-  cat tmp.txt > "$1"
+  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/ +/ /g' > /tmp/minifier_tmp.txt
+  cat /tmp/minifier_tmp.txt > "$1"
 
   
   if isSet $T ; then 
     # minification with tags_file
     for TAG in $TAGS_BLOCK; do
       TAG=$(echo "$TAG" | sed -e 's/\(.*\)/\L\1/')
-      cat "$1" | sed -E -e "s/ ?<$TAG> ?/<$TAG>/g"  -e "s/ <$TAG([^>]*)> /<$TAG\1>/g" -e "s/ ?<\/$TAG ?> ?/<\/$TAG>/g" > tmp.txt
-      cat tmp.txt > "$1"
+      cat "$1" | sed -E -e "s/ ?<$TAG> ?/<$TAG>/g"  -e "s/ <$TAG([^>]*)> /<$TAG\1>/g" -e "s/ ?<\/$TAG ?> ?/<\/$TAG>/g" > /tmp/minifier_tmp.txt
+      cat /tmp/minifier_tmp.txt > "$1"
     done
   fi
   
@@ -202,8 +201,8 @@ minifier_html(){
 minifier_css(){
   SIZE_B=$(get_size "$1")
 
-  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>(]) */\1/g' > tmp.txt
-  cat tmp.txt > "$1"
+  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>(]) */\1/g' > /tmp/minifier_tmp.txt
+  cat /tmp/minifier_tmp.txt > "$1"
   
   SIZE_A=$(get_size "$1")
   
