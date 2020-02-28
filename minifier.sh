@@ -31,6 +31,7 @@ help(){
 # $1 : The string
 # $2 : The pattern
 match_pattern(){
+  test -z "$1" && { test "$2" = "^$" && return 0 || return 1;}
   ! test -z $( echo "$1" | grep -E "$2" )
   return $?
 }
@@ -87,8 +88,15 @@ check_arguments(){
   TAGS_FILE_INDEX=-1 # The number of the argument designating the tags_file  
 
   for OPT in "$@"; do 
+    
     ARG_NB=$(($ARG_NB+1))
+    
     OPT="$OPT"
+
+    # check empty argument
+    if ! isSet $OPT; then
+      echo "An argument is empty\n$USAGE" >&2 && exit 14;
+    fi
 
     test $ARG_NB -eq $TAGS_FILE_INDEX && continue # skip the argument just after the '-t' option
 
@@ -247,7 +255,7 @@ USAGE='Enter "./minifier.sh --help" for more informations.'
 
 check_arguments "$@"
 
-DEST_DIR="$(echo $DEST_DIR | sed -E -e 's/\/$//')"
+DEST_DIR="$(echo $DEST_DIR | sed -E -e 's/\/$//')" # eventually remove '/' at the end 
 
 copy_directory "$SRC_DIR" "$DEST_DIR"
 
