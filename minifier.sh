@@ -8,26 +8,27 @@
 help(){
       echo 'usage : ./minifier.sh [OPTION]... dir_source dir_dest
 
-            Minifies HTML and/or CSS files with :
-                dir_source   path to the root directory of the website to be minified
-                dir_dest     path to the root directory of the minified website
-            OPTIONS
-                --help       show help and exit
-                -v           displays the list of minified files; and for each
-                                file, its final and initial sizes, and its reduction
-                                percentage
-                -f           if the dir_dest file exists, its content is
-                                removed without asking for confirmation of deletion
-                --css        CSS files are minified
-                --html       HTML files are minified
-                if none of the 2 previous options is present, the HTML and CSSfiles are minified
-                
-                -t tags_file the "white space" characters preceding and following the
-                                tags (opening or closing) listed in the ’tags_file’ are deleted'
+        Minifies HTML and/or CSS files with :
+            dir_source   path to the root directory of the website to be minified
+            dir_dest     path to the root directory of the minified website
+        OPTIONS
+            --help       show help and exit
+            -v           displays the list of minified files; and for each
+                            file, its final and initial sizes, and its reduction
+                            percentage
+            -f           if the dir_dest file exists, its content is
+                            removed without asking for confirmation of deletion
+            -p           remove also the space before and after "(" and ")" in css files
+            --css        CSS files are minified
+            --html       HTML files are minified
+            if none of the 2 previous options is present, the HTML and CSSfiles are minified
+            
+            -t tags_file the "white space" characters preceding and following the
+                            tags (opening or closing) listed in the ’tags_file’ are deleted'
 }
 
 
-# Function checking if a string matching with pattern
+# Function checking if a string match with pattern
 # $1 : The string
 # $2 : The pattern
 match_pattern(){
@@ -43,12 +44,12 @@ isSet()(
   return $?
 )
 
-# Function assigning the value '1' to variables with the same name as the given parameter
-# $1 : The option (ex : css, f ...) without '-' or '--'
+# Function setting the flag variable of given option at 1
+# $1 : The option without '-' or '--' (ex : css, f ...)
 # $2 : 'double' if the original option is of type '--', else if is of type '-'
 # Exemple : 
-#           'set_option f' -> will create $F and $F=1
-#           'set_option css double' -> will create $CSS and $CSS=1
+#           'set_option f' -> will set $F at 1
+#           'set_option css double' -> will set $CSS at 1
 #           'set_option css' or 'set_option t double' -> error
 set_option(){
   # check option validity
@@ -58,7 +59,7 @@ set_option(){
     ! match_pattern "$1" '^[vftp]$' && { echo "The '-$1' option is not supported\n$USAGE" >&2 && exit 2; }        # ===> EXIT : Wrong '-' option
   fi
 
-  # Create the variable associated with the option and check if it's the first time
+  # set flag variable and check if it's the first time
   OPT_NAME=$( echo "$1" | sed -e 's/\(.*\)/\U\1/' )
   isSet $( eval echo "\$$OPT_NAME" ) && { echo "The '$1' option can't be positioned more than one time\n$USAGE" >&2 && exit 3; }  # ===> EXIT : same option several times
   eval $OPT_NAME=1
@@ -84,12 +85,12 @@ check_arguments(){
     exit 0                                 # ===> EXIT : after help message
   fi
 
-  ARG_NB=0 
+  ARG_INDEX=0 # Index of current argument
   TAGS_FILE_INDEX=-1 # The number of the argument designating the tags_file  
 
   for OPT in "$@"; do 
     
-    ARG_NB=$(($ARG_NB+1))
+    ARG_INDEX=$(($ARG_INDEX+1))
     
     OPT="$OPT"
 
@@ -98,7 +99,7 @@ check_arguments(){
       echo "An argument is empty\n$USAGE" >&2 && exit 14;
     fi
 
-    test $ARG_NB -eq $TAGS_FILE_INDEX && continue # skip the argument just after the '-t' option
+    test $ARG_INDEX -eq $TAGS_FILE_INDEX && continue # skip the argument just after the '-t' option
 
     test $OPT = '--help' && { echo "The '--help' option must be alone\n$USAGE" >&2 && exit 4; }             # ===> EXIT : '--help' isn't alone
   
@@ -107,7 +108,7 @@ check_arguments(){
       set_group_options $OPT
 
       if match_pattern $OPT 't' ;then
-        TAGS_FILE_INDEX=$(($ARG_NB+1))
+        TAGS_FILE_INDEX=$(($ARG_INDEX+1))
         TAGS_FILE=$(eval echo \$$TAGS_FILE_INDEX)
         test -f "$TAGS_FILE" || { echo "Error : '-t' : Invalid tags_file '$TAGS_FILE'\n$USAGE">&2 && exit 5; }           # ===> EXIT : Invalid tags_file
         TAGS_BLOCK=$(cat $TAGS_FILE)
