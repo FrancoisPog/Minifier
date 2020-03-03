@@ -55,7 +55,7 @@ set_option(){
   if test "$2" = 'double'; then
     ! match_pattern "$1" '(^css$|^html$)' && { echo "The '--$1' option is not supported\n$USAGE" >&2 && exit 1; }       # ===> EXIT : Wrong '--' option 
   else
-    ! match_pattern "$1" '^[vft]$' && { echo "The '-$1' option is not supported\n$USAGE" >&2 && exit 2; }        # ===> EXIT : Wrong '-' option
+    ! match_pattern "$1" '^[vftp]$' && { echo "The '-$1' option is not supported\n$USAGE" >&2 && exit 2; }        # ===> EXIT : Wrong '-' option
   fi
 
   # Create the variable associated with the option and check if it's the first time
@@ -180,7 +180,7 @@ minifier_html(){
   SIZE_B=$(get_size $1)
 
   # main minification
-  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>/ /g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/ +/ /g' > /tmp/minifier_tmp.txt
+  cat "$1" | tr "\n" " " | sed -E -e 's/<!--([^-]|-[^-])*--+([^>-]([^-]|-[^-])*--+)*>//g' -e 's/\t/ /g'   -e 's/<([[:alpha:]]+ *)/<\L\1/g' -e 's/\/([[:alpha:]]+ *>)/\/\L\1/g' -e 's/\r/ /g' -e 's/ +/ /g' > /tmp/minifier_tmp.txt
   cat /tmp/minifier_tmp.txt > "$1"
 
   
@@ -209,8 +209,13 @@ minifier_html(){
 minifier_css(){
   SIZE_B=$(get_size "$1")
 
-  cat "$1" | tr "\n" " " | sed -r   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>(]) */\1/g' > /tmp/minifier_tmp.txt
+  cat "$1" | tr "\n" " " | sed -E   -e 's/\t/ /g' -e 's/\r/ /g' -e "s/\/\*[^*]*\*+([^\/*][^*]*\*+)*\// /g" -e 's/ +/ /g' -e 's/^ //g' -e 's/ *([,;:{}>]) */\1/g' > /tmp/minifier_tmp.txt
   cat /tmp/minifier_tmp.txt > "$1"
+
+  if isSet $P ;then
+    cat "$1" | sed -E -e 's/ *([()]) */\1/g' > /tmp/minifier_tmp.txt 
+    cat /tmp/minifier_tmp.txt > "$1"
+  fi
   
   SIZE_A=$(get_size "$1")
   
