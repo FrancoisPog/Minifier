@@ -12,3 +12,6 @@
 
 # Text files
 *.txt
+
+*.tar
+*.tar.gz
